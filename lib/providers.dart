@@ -1,10 +1,23 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:uuid/uuid.dart';
 import 'data/models/glucose_reading.dart';
+import 'data/models/glucose_repository_hive.dart';
 import 'data/simulator/glucose_simulator.dart';
-import 'data/repositories/glucose_repository.dart';
 import 'core/constants/constants.dart';
-import 'shared/widgets/avatar_widget.dart'; // ← import catalogue
+import 'services/hive_service.dart';
+
+// ─────────────────────────────────────────────────────────────
+// Repository — Hive-backed, singleton per app lifetime
+// ─────────────────────────────────────────────────────────────
+
+final glucoseRepositoryProvider = Provider<HiveGlucoseRepository>((ref) {
+  return HiveGlucoseRepository();
+});
+
+// ─────────────────────────────────────────────────────────────
+// Simulator
+// ─────────────────────────────────────────────────────────────
 
 final glucoseSimulatorProvider = Provider<GlucoseSimulator>((ref) {
   final s = GlucoseSimulator();
@@ -13,8 +26,12 @@ final glucoseSimulatorProvider = Provider<GlucoseSimulator>((ref) {
   return s;
 });
 
+// ─────────────────────────────────────────────────────────────
+// Glucose stream — saves every reading to Hive automatically
+// ─────────────────────────────────────────────────────────────
+
 final glucoseStreamProvider = StreamProvider<GlucoseReading>((ref) {
-  final sim = ref.watch(glucoseSimulatorProvider);
+  final sim  = ref.watch(glucoseSimulatorProvider);
   final repo = ref.read(glucoseRepositoryProvider);
   return sim.stream.asyncMap((r) async {
     await repo.save(r);
@@ -22,13 +39,26 @@ final glucoseStreamProvider = StreamProvider<GlucoseReading>((ref) {
   });
 });
 
-final latestGlucoseProvider = Provider<GlucoseReading?>(
-  (ref) => ref.watch(glucoseStreamProvider).valueOrNull,
-);
+final latestGlucoseProvider = Provider<GlucoseReading?>((ref) {
+  // Returns the live stream value, or falls back to the last
+  // persisted reading from Hive (so the dashboard is never blank).
+  return ref.watch(glucoseStreamProvider).valueOrNull
+      ?? HiveService.loadLatestReading();
+});
 
-final glucoseRepositoryProvider = Provider<InMemoryGlucoseRepository>(
-  (_) => InMemoryGlucoseRepository(),
-);
+// ─────────────────────────────────────────────────────────────
+// Glucose history — loaded from Hive + live updates appended
+// ─────────────────────────────────────────────────────────────
+
+final glucoseHistoryProvider = Provider<List<GlucoseReading>>((ref) {
+  // Watch the stream so this rebuilds on every new reading
+  ref.watch(glucoseStreamProvider);
+  return ref.read(glucoseRepositoryProvider).getAll();
+});
+
+// ─────────────────────────────────────────────────────────────
+// User profile — persisted via Hive + SharedPreferences
+// ─────────────────────────────────────────────────────────────
 
 final userProfileProvider =
     StateNotifierProvider<UserProfileNotifier, UserProfile>(
@@ -36,52 +66,63 @@ final userProfileProvider =
 );
 
 class UserProfileNotifier extends StateNotifier<UserProfile> {
-  UserProfileNotifier()
-      : super(UserProfile(
-          id: 'default-user',
-          name: 'Sarah',
-          glucoseUnit: GlucoseUnit.mgdl,
-          therapyMode: TherapyMode.pump,
-          targetLowMgdl: AppConstants.defaultTargetLow,
-          targetHighMgdl: AppConstants.defaultTargetHigh,
-          alertUrgentLow: true,
-          alertLow: true,
-          alertHigh: true,
-          alertUrgentHigh: true,
-          // Pick a stable shape for the demo user based on id hash.
-          avatarShape: randomAvatarShape(seed: 'default-user'.hashCode),
-        ));
+  UserProfileNotifier() : super(_loadFromHive());
+
+  /// Restore profile from Hive on startup.
+  static UserProfile _loadFromHive() {
+    final name = HiveService.loadProfileField<String>('name') ?? 'Sarah';
+    final unitName = HiveService.loadProfileField<String>('glucoseUnit');
+    final unit = unitName != null
+        ? GlucoseUnit.values.byName(unitName)
+        : GlucoseUnit.mgdl;
+    final therapyName = HiveService.loadProfileField<String>('therapyMode');
+    final therapy = therapyName != null
+        ? TherapyMode.values.byName(therapyName)
+        : TherapyMode.pump;
+    final targetLow = HiveService.loadProfileField<double>('targetLow')
+        ?? AppConstants.defaultTargetLow;
+    final targetHigh = HiveService.loadProfileField<double>('targetHigh')
+        ?? AppConstants.defaultTargetHigh;
+    final avatarShape =
+        HiveService.loadProfileField<String>('avatarShape') ?? '';
+
+    return UserProfile(
+      id: 'default-user',
+      name: name,
+      glucoseUnit: unit,
+      therapyMode: therapy,
+      targetLowMgdl: targetLow,
+      targetHighMgdl: targetHigh,
+      alertUrgentLow: true,
+      alertLow: HiveService.loadProfileField<bool>('alertLow') ?? true,
+      alertHigh: HiveService.loadProfileField<bool>('alertHigh') ?? true,
+      alertUrgentHigh: true,
+    );
+  }
 
   Future<void> updateName(String v) async {
     state = state.copyWith(name: v);
-    final p = await SharedPreferences.getInstance();
-    await p.setString(AppConstants.prefPatientName, v);
+    await HiveService.saveProfileField('name', v);
   }
 
   Future<void> updateGlucoseUnit(GlucoseUnit v) async {
     state = state.copyWith(glucoseUnit: v);
-    final p = await SharedPreferences.getInstance();
-    await p.setString(AppConstants.prefGlucoseUnit, v.name);
+    await HiveService.saveProfileField('glucoseUnit', v.name);
   }
 
   Future<void> updateTherapyMode(TherapyMode v) async {
     state = state.copyWith(therapyMode: v);
-    final p = await SharedPreferences.getInstance();
-    await p.setString(AppConstants.prefTherapyMode, v.name);
+    await HiveService.saveProfileField('therapyMode', v.name);
   }
 
   Future<void> updateTargetRange(double low, double high) async {
     state = state.copyWith(targetLowMgdl: low, targetHighMgdl: high);
-    final p = await SharedPreferences.getInstance();
-    await p.setDouble(AppConstants.prefTargetLow, low);
-    await p.setDouble(AppConstants.prefTargetHigh, high);
+    await HiveService.saveProfileField('targetLow', low);
+    await HiveService.saveProfileField('targetHigh', high);
   }
 
   Future<void> updateAlerts({
-    bool? urgentLow,
-    bool? low,
-    bool? high,
-    bool? urgentHigh,
+    bool? urgentLow, bool? low, bool? high, bool? urgentHigh,
   }) async {
     state = state.copyWith(
       alertUrgentLow: urgentLow,
@@ -89,20 +130,19 @@ class UserProfileNotifier extends StateNotifier<UserProfile> {
       alertHigh: high,
       alertUrgentHigh: urgentHigh,
     );
-    final p = await SharedPreferences.getInstance();
-    if (urgentLow != null) await p.setBool(AppConstants.prefAlertUrgentLow, urgentLow);
-    if (low != null) await p.setBool(AppConstants.prefAlertLow, low);
-    if (high != null) await p.setBool(AppConstants.prefAlertHigh, high);
-    if (urgentHigh != null) await p.setBool(AppConstants.prefAlertUrgentHigh, urgentHigh);
+    if (low != null) await HiveService.saveProfileField('alertLow', low);
+    if (high != null) await HiveService.saveProfileField('alertHigh', high);
   }
 
-  /// Called at the end of onboarding to stamp the chosen shape onto the profile.
   Future<void> updateAvatarShape(String shape) async {
     state = state.copyWith(avatarShape: shape);
-    final p = await SharedPreferences.getInstance();
-    await p.setString('avatarShape', shape);
+    await HiveService.saveProfileField('avatarShape', shape);
   }
 }
+
+// ─────────────────────────────────────────────────────────────
+// Onboarding
+// ─────────────────────────────────────────────────────────────
 
 final onboardingCompleteProvider =
     StateNotifierProvider<OnboardingNotifier, bool>(
@@ -112,13 +152,14 @@ final onboardingCompleteProvider =
 class OnboardingNotifier extends StateNotifier<bool> {
   OnboardingNotifier() : super(true);
 
+  /// Called by app_router on startup — always returns true (demo mode).
   Future<void> check() async {
     state = true;
   }
 
   Future<void> complete() async {
     state = true;
-    final p = await SharedPreferences.getInstance();
-    await p.setBool(AppConstants.prefOnboardingComplete, true);
+    await HiveService.saveProfileField(
+        AppConstants.prefOnboardingComplete, true);
   }
 }
