@@ -2,17 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../core/theme/theme.dart';
 import '../../../core/constants/constants.dart';
-import '../../../core/router/app_router.dart';
 import '../../../providers.dart';
 import '../../../data/models/glucose_reading.dart';
-import '../../../shared/widgets/animated_reveal_card.dart';
 import '../../../shared/widgets/avatar_widget.dart';
-import '../../onboarding/providers/onboarding_provider.dart';
-import '../../onboarding/screens/onboarding_screen.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -45,20 +40,17 @@ class SettingsScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 20),
             Expanded(
-              child: Builder(
-                builder: (context) {
-                  final bottomPad = MediaQuery.of(context).padding.bottom + 90;
-                  return ListView(
-                    padding: EdgeInsets.fromLTRB(
-                      AppDimens.screenHorizontal, 0,
-                      AppDimens.screenHorizontal, bottomPad,
-                    ),
-                    children: [
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(
+                  AppDimens.screenHorizontal, 0,
+                  AppDimens.screenHorizontal, 0,
+                ),
+                children: [
 
-                  // ── Profile — HERO (visible on first load) ──
+                  // ── Profile ───────────────────────────
                   _SectionLabel('Profile'),
                   _SettingsGroup(children: [
-                    _ProfileRow(profile: profile, ref: ref, pageContext: context),
+                    _ProfileRow(profile: profile),
                     const _Divider(),
                     _NavRow(
                       icon: Icons.medical_services_rounded,
@@ -81,191 +73,162 @@ class SettingsScreen extends ConsumerWidget {
 
                   const SizedBox(height: 24),
 
-                  // ── Below-fold sections animate in ──
-                  AnimatedRevealCard(
-                    delay: const Duration(milliseconds: 0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _SectionLabel('Glucose'),
-                        _SettingsGroup(children: [
-                          _ToggleRow(
-                            icon: Icons.straighten_rounded,
-                            iconColor: AppColors.accent,
-                            label: 'Unit',
-                            trailing: _UnitToggle(
-                              unit: profile.glucoseUnit,
-                              onChanged: (u) => ref.read(userProfileProvider.notifier).updateGlucoseUnit(u),
-                            ),
-                          ),
-                          const _Divider(),
-                          _InlineRangeSlider(
-                            lowMgdl: profile.targetLowMgdl,
-                            highMgdl: profile.targetHighMgdl,
-                            unit: profile.glucoseUnit,
-                            onChanged: (low, high) => ref
-                                .read(userProfileProvider.notifier)
-                                .updateTargetRange(low, high),
-                          ),
-                        ]),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  AnimatedRevealCard(
-                    delay: const Duration(milliseconds: 80),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _SectionLabel('Alerts'),
-                        _SettingsGroup(children: [
-                          _AlertRow(
-                            icon: Icons.arrow_downward_rounded,
-                            iconColor: AppColors.glucoseUrgentLow,
-                            label: 'Urgent low',
-                            sublabel: '< \${GlucoseConverter.format(AppConstants.urgentLowThreshold, profile.glucoseUnit)} \${profile.glucoseUnit.label}',
-                            value: profile.alertUrgentLow,
-                            locked: true,
-                            onChanged: (_) {},
-                          ),
-                          const _Divider(),
-                          _AlertRow(
-                            icon: Icons.arrow_downward_rounded,
-                            iconColor: AppColors.glucoseLow,
-                            label: 'Low alert',
-                            sublabel: '< \${GlucoseConverter.format(profile.targetLowMgdl, profile.glucoseUnit)} \${profile.glucoseUnit.label}',
-                            value: profile.alertLow,
-                            onChanged: (v) => ref.read(userProfileProvider.notifier).updateAlerts(low: v),
-                          ),
-                          const _Divider(),
-                          _AlertRow(
-                            icon: Icons.arrow_upward_rounded,
-                            iconColor: AppColors.glucoseHigh,
-                            label: 'High alert',
-                            sublabel: '> \${GlucoseConverter.format(profile.targetHighMgdl, profile.glucoseUnit)} \${profile.glucoseUnit.label}',
-                            value: profile.alertHigh,
-                            onChanged: (v) => ref.read(userProfileProvider.notifier).updateAlerts(high: v),
-                          ),
-                          const _Divider(),
-                          _AlertRow(
-                            icon: Icons.arrow_upward_rounded,
-                            iconColor: AppColors.glucoseUrgentHigh,
-                            label: 'Urgent high',
-                            sublabel: '> \${GlucoseConverter.format(AppConstants.urgentHighThreshold, profile.glucoseUnit)} \${profile.glucoseUnit.label}',
-                            value: profile.alertUrgentHigh,
-                            locked: true,
-                            onChanged: (_) {},
-                          ),
-                        ]),
-                        const SizedBox(height: 8),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: const [
-                            Icon(Icons.lock_rounded, size: 10, color: AppColors.textTertiary),
-                            SizedBox(width: 5),
-                            Text(
-                              'Urgent alerts are mandatory per ISO 14971.',
-                              style: TextStyle(fontSize: 10, color: AppColors.textTertiary, height: 1.3),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  AnimatedRevealCard(
-                    delay: const Duration(milliseconds: 160),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _SectionLabel('Notifications'),
-                        _SettingsGroup(children: [
-                          _SwitchRow(
-                            icon: Icons.notifications_rounded,
-                            iconColor: AppColors.purpleCard,
-                            label: 'Glucose alerts',
-                            sublabel: 'Push notifications for threshold events',
-                            initialValue: true,
-                          ),
-                          const _Divider(),
-                          _SwitchRow(
-                            icon: Icons.auto_awesome_rounded,
-                            iconColor: AppColors.accent,
-                            label: 'AI predictions',
-                            sublabel: 'Predictive warnings before threshold',
-                            initialValue: true,
-                          ),
-                          const _Divider(),
-                          _SwitchRow(
-                            icon: Icons.schedule_rounded,
-                            iconColor: const Color(0xFF85B7EB),
-                            label: 'Reminders',
-                            sublabel: 'Daily check-in and meal log reminders',
-                            initialValue: false,
-                          ),
-                        ]),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  AnimatedRevealCard(
-                    delay: const Duration(milliseconds: 240),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _SectionLabel('About & Legal'),
-                        _SettingsGroup(children: [
-                          _InfoRow('App', 'Glysera'),
-                          const _Divider(),
-                          _InfoRow('Version', '1.0.0-MVP'),
-                          const _Divider(),
-                          _InfoRow('Software class', 'IEC 62304 - Class B'),
-                          const _Divider(),
-                          _InfoRow('Risk standard', 'ISO 14971:2019'),
-                          const _Divider(),
-                          _InfoRow('Usability', 'IEC 62366-1'),
-                          const _Divider(),
-                          _InfoRow('CGM standard', 'ISO 15197'),
-                          const _Divider(),
-                          _NavRow(
-                            icon: Icons.description_outlined,
-                            iconColor: AppColors.textTertiary,
-                            label: 'Privacy policy',
-                            onTap: () {},
-                          ),
-                          const _Divider(),
-                          _NavRow(
-                            icon: Icons.gavel_rounded,
-                            iconColor: AppColors.textTertiary,
-                            label: 'Terms of use',
-                            onTap: () {},
-                          ),
-                        ]),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  AnimatedRevealCard(
-                    delay: const Duration(milliseconds: 320),
-                    child: _SettingsGroup(children: [
-                      _DangerRow(
-                        label: 'Reset all data',
-                        onTap: () => _showResetDialog(context),
+                  // ── Glucose ───────────────────────────
+                  _SectionLabel('Glucose'),
+                  _SettingsGroup(children: [
+                    _ToggleRow(
+                      icon: Icons.straighten_rounded,
+                      iconColor: AppColors.accent,
+                      label: 'Unit',
+                      trailing: _UnitToggle(
+                        unit: profile.glucoseUnit,
+                        onChanged: (u) => ref.read(userProfileProvider.notifier).updateGlucoseUnit(u),
                       ),
-                    ]),
+                    ),
+                    const _Divider(),
+                    _InlineRangeSlider(
+                      lowMgdl: profile.targetLowMgdl,
+                      highMgdl: profile.targetHighMgdl,
+                      unit: profile.glucoseUnit,
+                      onChanged: (low, high) => ref
+                          .read(userProfileProvider.notifier)
+                          .updateTargetRange(low, high),
+                    ),
+                  ]),
+
+                  const SizedBox(height: 24),
+
+                  // ── Alerts ────────────────────────────
+                  _SectionLabel('Alerts'),
+                  _SettingsGroup(children: [
+                    _AlertRow(
+                      icon: Icons.arrow_downward_rounded,
+                      iconColor: AppColors.glucoseUrgentLow,
+                      label: 'Urgent low',
+                      sublabel: '< ${GlucoseConverter.format(AppConstants.urgentLowThreshold, profile.glucoseUnit)} ${profile.glucoseUnit.label}',
+                      value: profile.alertUrgentLow,
+                      locked: true,
+                      onChanged: (_) {},
+                    ),
+                    const _Divider(),
+                    _AlertRow(
+                      icon: Icons.arrow_downward_rounded,
+                      iconColor: AppColors.glucoseLow,
+                      label: 'Low alert',
+                      sublabel: '< ${GlucoseConverter.format(profile.targetLowMgdl, profile.glucoseUnit)} ${profile.glucoseUnit.label}',
+                      value: profile.alertLow,
+                      onChanged: (v) => ref.read(userProfileProvider.notifier).updateAlerts(low: v),
+                    ),
+                    const _Divider(),
+                    _AlertRow(
+                      icon: Icons.arrow_upward_rounded,
+                      iconColor: AppColors.glucoseHigh,
+                      label: 'High alert',
+                      sublabel: '> ${GlucoseConverter.format(profile.targetHighMgdl, profile.glucoseUnit)} ${profile.glucoseUnit.label}',
+                      value: profile.alertHigh,
+                      onChanged: (v) => ref.read(userProfileProvider.notifier).updateAlerts(high: v),
+                    ),
+                    const _Divider(),
+                    _AlertRow(
+                      icon: Icons.arrow_upward_rounded,
+                      iconColor: AppColors.glucoseUrgentHigh,
+                      label: 'Urgent high',
+                      sublabel: '> ${GlucoseConverter.format(AppConstants.urgentHighThreshold, profile.glucoseUnit)} ${profile.glucoseUnit.label}',
+                      value: profile.alertUrgentHigh,
+                      locked: true,
+                      onChanged: (_) {},
+                    ),
+                  ]),
+
+                  const SizedBox(height: 8),
+
+                  // ISO note — constrained width
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: const [
+                      Icon(Icons.lock_rounded, size: 10, color: AppColors.textTertiary),
+                      SizedBox(width: 5),
+                      Text(
+                        'Urgent alerts are mandatory per ISO 14971.',
+                        style: TextStyle(fontSize: 10, color: AppColors.textTertiary, height: 1.3),
+                      ),
+                    ],
                   ),
 
+                  const SizedBox(height: 24),
+
+                  // ── Notifications ─────────────────────
+                  _SectionLabel('Notifications'),
+                  _SettingsGroup(children: [
+                    _SwitchRow(
+                      icon: Icons.notifications_rounded,
+                      iconColor: AppColors.purpleCard,
+                      label: 'Glucose alerts',
+                      sublabel: 'Push notifications for threshold events',
+                      initialValue: true,
+                    ),
+                    const _Divider(),
+                    _SwitchRow(
+                      icon: Icons.auto_awesome_rounded,
+                      iconColor: AppColors.accent,
+                      label: 'AI predictions',
+                      sublabel: 'Predictive warnings before threshold',
+                      initialValue: true,
+                    ),
+                    const _Divider(),
+                    _SwitchRow(
+                      icon: Icons.schedule_rounded,
+                      iconColor: const Color(0xFF85B7EB),
+                      label: 'Reminders',
+                      sublabel: 'Daily check-in and meal log reminders',
+                      initialValue: false,
+                    ),
+                  ]),
+
+                  const SizedBox(height: 24),
+
+                  // ── About ─────────────────────────────
+                  _SectionLabel('About & Legal'),
+                  _SettingsGroup(children: [
+                    _InfoRow('App', 'Glysera'),
+                    const _Divider(),
+                    _InfoRow('Version', '1.0.0-MVP'),
+                    const _Divider(),
+                    _InfoRow('Software class', 'IEC 62304 — Class B'),
+                    const _Divider(),
+                    _InfoRow('Risk standard', 'ISO 14971:2019'),
+                    const _Divider(),
+                    _InfoRow('Usability', 'IEC 62366-1'),
+                    const _Divider(),
+                    _InfoRow('CGM standard', 'ISO 15197'),
+                    const _Divider(),
+                    _NavRow(
+                      icon: Icons.description_outlined,
+                      iconColor: AppColors.textTertiary,
+                      label: 'Privacy policy',
+                      onTap: () {},
+                    ),
+                    const _Divider(),
+                    _NavRow(
+                      icon: Icons.gavel_rounded,
+                      iconColor: AppColors.textTertiary,
+                      label: 'Terms of use',
+                      onTap: () {},
+                    ),
+                  ]),
+
+                  const SizedBox(height: 24),
+
+                  // ── Danger ────────────────────────────
+                  _SettingsGroup(children: [
+                    _DangerRow(
+                      label: 'Reset all data',
+                      onTap: () => _showResetDialog(context),
+                    ),
+                  ]),
+
+                  const SizedBox(height: 120),
                 ],
-                  );
-                },
               ),
             ),
           ],
@@ -501,220 +464,32 @@ class _IconBox extends StatelessWidget {
 
 class _ProfileRow extends StatelessWidget {
   final UserProfile profile;
-  final WidgetRef ref;
-  final BuildContext pageContext;
-  const _ProfileRow({required this.profile, required this.ref, required this.pageContext});
-
-  void _openEditProfile() {
-    showModalBottomSheet(
-      context: pageContext,
-      useRootNavigator: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _EditProfileSheet(profile: profile, ref: ref, pageContext: pageContext),
-    );
-  }
+  const _ProfileRow({required this.profile});
 
   @override
   Widget build(BuildContext context) {
     final name = profile.name.isNotEmpty ? profile.name : 'Set your name';
-    return GestureDetector(
-      onTap: _openEditProfile,
-      behavior: HitTestBehavior.opaque,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
-          children: [
-            AvatarWidget(
-              assetPath: profile.avatarShape,
-              size: 44,
-              padding: 8,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(name, style: GoogleFonts.montserrat(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-                  Text(profile.therapyMode.label, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                ],
-              ),
-            ),
-            const Icon(Icons.chevron_right_rounded, color: AppColors.textTertiary, size: 20),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ── Edit profile bottom sheet ─────────────────────────────────
-
-class _EditProfileSheet extends StatefulWidget {
-  final UserProfile profile;
-  final WidgetRef ref;
-  final BuildContext pageContext;
-
-  const _EditProfileSheet({
-    required this.profile,
-    required this.ref,
-    required this.pageContext,
-  });
-
-  @override
-  State<_EditProfileSheet> createState() => _EditProfileSheetState();
-}
-
-class _EditProfileSheetState extends State<_EditProfileSheet> {
-  late String _currentShape;
-
-  @override
-  void initState() {
-    super.initState();
-    _currentShape = widget.profile.avatarShape;
-  }
-
-  void _reroll() {
-    final newShape = randomAvatarShape();
-    setState(() => _currentShape = newShape);
-    // Save immediately so it persists even if user cancels edit flow
-    widget.ref.read(userProfileProvider.notifier).updateAvatarShape(newShape);
-  }
-
-  void _launchEditFlow(BuildContext sheetContext) {
-    widget.ref.read(onboardingFlowProvider.notifier).startEditMode(
-      name: widget.profile.name,
-      dateOfBirth: widget.profile.dateOfBirth,
-      glucoseUnit: widget.profile.glucoseUnit,
-      therapyMode: widget.profile.therapyMode,
-      targetLowMgdl: widget.profile.targetLowMgdl,
-      targetHighMgdl: widget.profile.targetHighMgdl,
-      avatarShape: _currentShape,
-    );
-    final nav = Navigator.of(widget.pageContext, rootNavigator: true);
-    Navigator.of(sheetContext).pop();
-    Future.microtask(() => nav.push(
-      MaterialPageRoute(
-        fullscreenDialog: true,
-        builder: (_) => const OnboardingScreen(),
-      ),
-    ));
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final name = widget.profile.name.isNotEmpty ? widget.profile.name : 'Your profile';
-    return Container(
-      decoration: const BoxDecoration(
-        color: AppColors.backgroundPrimary,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
         children: [
-          const SizedBox(height: 12),
-          Center(
-            child: Container(
-              width: 36, height: 4,
-              decoration: BoxDecoration(color: AppColors.cardBorder, borderRadius: BorderRadius.circular(99)),
-            ),
+          AvatarWidget(
+            assetPath: profile.avatarShape.isNotEmpty
+                ? profile.avatarShape
+                : kAvatarShapes[0],
+            size: 44,
           ),
-          const SizedBox(height: 24),
-
-          // Tappable avatar — tap to get a new random shape
-          GestureDetector(
-            onTap: _reroll,
-            child: Stack(
-              alignment: Alignment.bottomRight,
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                AvatarWidget(
-                  assetPath: _currentShape,
-                  size: 80,
-                  padding: 14,
-                ),
-                Container(
-                  width: 26,
-                  height: 26,
-                  decoration: BoxDecoration(
-                    color: AppColors.textPrimary,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: AppColors.backgroundPrimary, width: 2),
-                  ),
-                  child: const Icon(Icons.shuffle_rounded, size: 13, color: AppColors.accent),
-                ),
+                Text(name, style: GoogleFonts.montserrat(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                Text(profile.therapyMode.label, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
               ],
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            'Tap to change',
-            style: TextStyle(fontSize: 11, color: AppColors.textTertiary),
-          ),
-          const SizedBox(height: 6),
-
-          Text(
-            name,
-            style: GoogleFonts.montserrat(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.textPrimary, letterSpacing: -0.5),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            widget.profile.therapyMode.label,
-            style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
-          ),
-
-          const SizedBox(height: 28),
-
-          // Edit profile button
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: GestureDetector(
-              onTap: () => _launchEditFlow(context),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                decoration: BoxDecoration(
-                  color: AppColors.textPrimary,
-                  borderRadius: BorderRadius.circular(50),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.edit_rounded, color: AppColors.accent, size: 16),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Edit profile',
-                      style: GoogleFonts.montserrat(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.white),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
-          // Cancel
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: GestureDetector(
-              onTap: () => Navigator.of(context).pop(),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                decoration: BoxDecoration(
-                  color: AppColors.backgroundSurface,
-                  borderRadius: BorderRadius.circular(50),
-                ),
-                child: Center(
-                  child: Text(
-                    'Cancel',
-                    style: GoogleFonts.montserrat(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textSecondary),
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-          SizedBox(height: MediaQuery.of(context).padding.bottom + 16),
+          const Icon(Icons.chevron_right_rounded, color: AppColors.textTertiary, size: 20),
         ],
       ),
     );

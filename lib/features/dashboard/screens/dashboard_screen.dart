@@ -107,26 +107,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                   ),
                   // Page dots
                   _PageDots(current: _pageIndex, total: 2),
-                  const SizedBox(width: 12),
-                  // Avatar
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: const BoxDecoration(
-                      color: AppColors.textPrimary,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Center(
-                      child: Text(
-                        displayName[0].toUpperCase(),
-                        style: GoogleFonts.montserrat(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.accent,
-                        ),
-                      ),
-                    ),
-                  ),
                 ],
               ),
             ),
@@ -624,6 +604,12 @@ class _SparklinePainter extends CustomPainter {
   final double targetLow, targetHigh;
   const _SparklinePainter({required this.values, required this.targetLow, required this.targetHigh});
 
+  Color _lineColor(double v) {
+    if (v < 54 || v > 250) return AppColors.glucoseUrgentLow;
+    if (v < targetLow || v > targetHigh) return AppColors.glucoseHigh;
+    return AppColors.accent;
+  }
+
   @override
   void paint(Canvas canvas, Size size) {
     if (values.length < 2) return;
@@ -631,39 +617,58 @@ class _SparklinePainter extends CustomPainter {
     double toY(double v) => size.height - ((v - minV) / (maxV - minV)) * size.height;
     double toX(int i) => (i / (values.length - 1)) * size.width;
 
-    final lowY = toY(targetLow);
+    final lowY  = toY(targetLow);
     final highY = toY(targetHigh);
+    final latest = values.last;
+    final lineColor = _lineColor(latest);
 
     // Range band
-    canvas.drawRect(Rect.fromLTRB(0, highY, size.width, lowY), Paint()..color = AppColors.accent.withOpacity(0.08));
-    final dash = Paint()..color = AppColors.accent.withOpacity(0.25)..strokeWidth = 0.5;
+    canvas.drawRect(Rect.fromLTRB(0, highY, size.width, lowY),
+        Paint()..color = AppColors.accent.withOpacity(0.06));
+    final dash = Paint()..color = AppColors.accent.withOpacity(0.2)..strokeWidth = 0.5;
     for (final y in [highY, lowY]) {
       double x = 0;
       while (x < size.width) { canvas.drawLine(Offset(x, y), Offset(x + 4, y), dash); x += 8; }
     }
 
-    // Fill
-    final fill = Path()..moveTo(toX(0), toY(values[0]));
+    // Build smooth path
+    final smooth = Path()..moveTo(toX(0), toY(values[0]));
     for (int i = 1; i < values.length; i++) {
       final cx = (toX(i - 1) + toX(i)) / 2;
-      fill.cubicTo(cx, toY(values[i - 1]), cx, toY(values[i]), toX(i), toY(values[i]));
+      smooth.cubicTo(cx, toY(values[i - 1]), cx, toY(values[i]), toX(i), toY(values[i]));
     }
-    fill..lineTo(size.width, size.height)..lineTo(0, size.height)..close();
-    canvas.drawPath(fill, Paint()..color = AppColors.accent.withOpacity(0.07));
 
-    // Line
-    final line = Path()..moveTo(toX(0), toY(values[0]));
-    for (int i = 1; i < values.length; i++) {
-      final cx = (toX(i - 1) + toX(i)) / 2;
-      line.cubicTo(cx, toY(values[i - 1]), cx, toY(values[i]), toX(i), toY(values[i]));
-    }
-    canvas.drawPath(line, Paint()..color = AppColors.accent..strokeWidth = 2.5..style = PaintingStyle.stroke..strokeCap = StrokeCap.round..strokeJoin = StrokeJoin.round);
+    // Gradient fill under curve
+    final fillPath = Path.from(smooth)
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+    final fillPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          lineColor.withOpacity(0.45),
+          lineColor.withOpacity(0.15),
+          lineColor.withOpacity(0.0),
+        ],
+        stops: const [0.0, 0.5, 1.0],
+      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
+    canvas.drawPath(fillPath, fillPaint);
+
+    // Stroke
+    canvas.drawPath(smooth, Paint()
+      ..color = lineColor
+      ..strokeWidth = 2.5
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round);
 
     // End dot
     final lx = toX(values.length - 1);
     final ly = toY(values.last);
-    canvas.drawCircle(Offset(lx, ly), 8, Paint()..color = AppColors.accent.withOpacity(0.25));
-    canvas.drawCircle(Offset(lx, ly), 5, Paint()..color = AppColors.accent);
+    canvas.drawCircle(Offset(lx, ly), 8, Paint()..color = lineColor.withOpacity(0.25));
+    canvas.drawCircle(Offset(lx, ly), 5, Paint()..color = lineColor);
   }
 
   @override

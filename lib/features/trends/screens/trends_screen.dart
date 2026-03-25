@@ -313,17 +313,15 @@ class _ChartPage extends StatelessWidget {
               ),
             ),
           ),
-          SizedBox(
-            height: 32,
-            child: Center(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: const [
-                  Text('Swipe for stats', style: TextStyle(fontSize: 11, color: Colors.white24)),
-                  Icon(Icons.chevron_right_rounded, size: 14, color: Colors.white24),
-                ],
-              ),
-            ),
+          const SizedBox(height: 10),
+          // Swipe hint
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.chevron_left_rounded, size: 16, color: Colors.white24),
+              const Text('Swipe for stats', style: TextStyle(fontSize: 11, color: Colors.white24)),
+              const Icon(Icons.chevron_right_rounded, size: 16, color: Colors.white24),
+            ],
           ),
         ],
       ),
@@ -336,6 +334,12 @@ class _ChartPainter extends CustomPainter {
   final double targetLow, targetHigh;
   const _ChartPainter({required this.values, required this.targetLow, required this.targetHigh});
 
+  Color _lineColor(double v) {
+    if (v < 54 || v > 250) return AppColors.glucoseUrgentLow;
+    if (v < targetLow || v > targetHigh) return AppColors.glucoseHigh;
+    return AppColors.accent;
+  }
+
   @override
   void paint(Canvas canvas, Size size) {
     if (values.length < 2) return;
@@ -343,8 +347,9 @@ class _ChartPainter extends CustomPainter {
     double toY(double v) => size.height - ((v - minV) / (maxV - minV)) * size.height;
     double toX(int i) => (i / (values.length - 1)) * size.width;
 
-    final lowY = toY(targetLow);
+    final lowY  = toY(targetLow);
     final highY = toY(targetHigh);
+    final lineColor = _lineColor(values.last);
 
     // Grid lines + labels
     for (final v in [50.0, 100.0, 150.0, 200.0, 250.0]) {
@@ -361,31 +366,58 @@ class _ChartPainter extends CustomPainter {
 
     // Target band
     canvas.drawRect(Rect.fromLTRB(0, highY, size.width, lowY),
-        Paint()..color = AppColors.accent.withOpacity(0.07));
-    final dash = Paint()..color = AppColors.accent.withOpacity(0.3)..strokeWidth = 0.5;
+        Paint()..color = AppColors.accent.withOpacity(0.06));
+    final dash = Paint()..color = AppColors.accent.withOpacity(0.2)..strokeWidth = 0.5;
     for (final y in [highY, lowY]) {
       double x = 0;
       while (x < size.width) { canvas.drawLine(Offset(x, y), Offset(x + 4, y), dash); x += 8; }
     }
 
-    // Colored segments
+    // Build smooth Catmull-Rom path
+    final smooth = Path()..moveTo(toX(0), toY(values[0]));
+    for (int i = 1; i < values.length; i++) {
+      final cx = (toX(i - 1) + toX(i)) / 2;
+      smooth.cubicTo(cx, toY(values[i - 1]), cx, toY(values[i]), toX(i), toY(values[i]));
+    }
+
+    // Gradient fill under curve — matches status color
+    final fillPath = Path.from(smooth)
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+    final fillPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          lineColor.withOpacity(0.45),
+          lineColor.withOpacity(0.15),
+          lineColor.withOpacity(0.0),
+        ],
+        stops: const [0.0, 0.5, 1.0],
+      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
+    canvas.drawPath(fillPath, fillPaint);
+
+    // Smooth stroke — colored by status per segment
     for (int i = 1; i < values.length; i++) {
       final mid = (values[i - 1] + values[i]) / 2;
-      final inRange = mid >= targetLow && mid <= targetHigh;
-      canvas.drawLine(
-        Offset(toX(i - 1), toY(values[i - 1])),
-        Offset(toX(i), toY(values[i])),
-        Paint()
-          ..color = inRange ? AppColors.accent : AppColors.forGlucose(mid)
-          ..strokeWidth = 2.5..strokeCap = StrokeCap.round,
-      );
+      final segColor = _lineColor(mid);
+      final seg = Path()..moveTo(toX(i - 1), toY(values[i - 1]));
+      final cx = (toX(i - 1) + toX(i)) / 2;
+      seg.cubicTo(cx, toY(values[i - 1]), cx, toY(values[i]), toX(i), toY(values[i]));
+      canvas.drawPath(seg, Paint()
+        ..color = segColor
+        ..strokeWidth = 2.5
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round);
     }
 
     // End dot
     final lx = toX(values.length - 1);
     final ly = toY(values.last);
-    canvas.drawCircle(Offset(lx, ly), 9, Paint()..color = AppColors.accent.withOpacity(0.2));
-    canvas.drawCircle(Offset(lx, ly), 5, Paint()..color = AppColors.accent);
+    canvas.drawCircle(Offset(lx, ly), 9, Paint()..color = lineColor.withOpacity(0.25));
+    canvas.drawCircle(Offset(lx, ly), 5, Paint()..color = lineColor);
   }
 
   @override
@@ -495,17 +527,14 @@ class _StatsPage extends StatelessWidget {
             ),
           ),
 
-          SizedBox(
-            height: 32,
-            child: Center(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: const [
-                  Icon(Icons.chevron_left_rounded, size: 14, color: Colors.white24),
-                  Text('Swipe for chart', style: TextStyle(fontSize: 11, color: Colors.white24)),
-                ],
-              ),
-            ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.chevron_left_rounded, size: 16, color: Colors.white24),
+              const Text('Swipe for chart', style: TextStyle(fontSize: 11, color: Colors.white24)),
+              const Icon(Icons.chevron_right_rounded, size: 16, color: Colors.white24),
+            ],
           ),
         ],
       ),

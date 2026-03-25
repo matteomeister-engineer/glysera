@@ -6,6 +6,7 @@ import 'data/models/glucose_repository_hive.dart';
 import 'data/simulator/glucose_simulator.dart';
 import 'core/constants/constants.dart';
 import 'services/hive_service.dart';
+import 'services/glucose_shared_store.dart';
 
 // ─────────────────────────────────────────────────────────────
 // Repository — Hive-backed, singleton per app lifetime
@@ -33,8 +34,15 @@ final glucoseSimulatorProvider = Provider<GlucoseSimulator>((ref) {
 final glucoseStreamProvider = StreamProvider<GlucoseReading>((ref) {
   final sim  = ref.watch(glucoseSimulatorProvider);
   final repo = ref.read(glucoseRepositoryProvider);
+  final profile = ref.read(userProfileProvider);
   return sim.stream.asyncMap((r) async {
     await repo.save(r);
+    // Write to shared container for widgets + Watch (with history)
+    await GlucoseSharedStore.write(
+      r,
+      profile.glucoseUnit,
+      fullHistory: repo.getAll(),
+    );
     return r;
   });
 });
