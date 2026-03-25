@@ -68,3 +68,4 @@ ios/Runner/GeneratedPluginRegistrant.*
 # macOS / system
 .DS_Store
 *.swp
+Branding/
