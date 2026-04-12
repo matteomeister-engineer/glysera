@@ -30,6 +30,13 @@ dev_dependencies:
   flutter_lints: ^4.0.0
   hive_generator: ^2.0.1
   build_runner: ^2.4.9
+  flutter_launcher_icons: ^0.14.1
+
+flutter_launcher_icons:
+  ios: true
+  android: false
+  image_path: "assets/images/icon.png"
+  min_sdk_android: 21
 
 flutter:
   uses-material-design: true
