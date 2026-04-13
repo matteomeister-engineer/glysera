@@ -8,11 +8,10 @@
 
 ---
 
-<!-- Replace the paths below with your actual screenshot paths once uploaded to the repo -->
 <p align="center">
-  <img src="Branding/Screenshots/Simulator Screenshot - iPhone 16e - 2026-03-24 at 19.42.15.png" width="28%" alt="Dashboard" />
+  <img src="assets/images/Iphone 16 Mockup.jpg" width="28%" alt="Glysera iPhone Mockup" />
   &nbsp;&nbsp;
-  <img src="Branding/Screenshots/Simulator Screenshot - iPhone 16e - 2026-03-25 at 12.12.39.png" width="28%" alt="Logbook" />
+  <img src="assets/images/TwoIphones.png" width="28%" alt="Glysera Two iPhones" />
 </p>
 
 ---
