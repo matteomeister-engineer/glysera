@@ -9,7 +9,7 @@
 ---
 
 <p align="center">
-  <img src="assets/images/Iphone 16 Mockup.jpg" width="28%" alt="Glysera iPhone Mockup" />
+  <img src="assets/images/Iphone 16 Mockup.png" width="28%" alt="Glysera iPhone Mockup" />
   &nbsp;&nbsp;
   <img src="assets/images/TwoIphones.png" width="28%" alt="Glysera Two iPhones" />
 </p>
